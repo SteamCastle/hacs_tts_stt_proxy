@@ -1,5 +1,7 @@
 """Services for tts_stt_proxy."""
 import logging
+import voluptuous as vol
+import homeassistant.helpers.config_validation as cv
 from homeassistant.core import ServiceCall
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,5 +46,11 @@ async def async_register_services(hass):
         await coordinator.async_save()
 
     hass.services.async_register(
-        "tts_stt_proxy", "trigger_health_check", trigger_health_check
+        "tts_stt_proxy",
+        "trigger_health_check",
+        trigger_health_check,
+        schema=vol.Schema({
+            vol.Optional("service_type"): vol.In(["tts", "stt"]),
+            vol.Optional("entity_id"): cv.entity_id,
+        }),
     )

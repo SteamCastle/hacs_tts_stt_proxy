@@ -29,6 +29,9 @@ class ProxyTTSSTTCoordinator:
     def __init__(self, hass):
         self.hass = hass
         self._store: Optional[Store] = None
+        self._health_check_task: Optional[asyncio.Task] = None
+        # Generate a minimal silent WAV for STT health check (16-bit PCM, 16kHz, mono, 1 second)
+        self._health_check_audio = self._generate_silent_wav()
 
     def _get_next_service(self, services: List[Dict]) -> Optional[str]:
         sorted_services = sorted(
@@ -50,6 +53,7 @@ class ProxyTTSSTTCoordinator:
         for svc in services:
             if svc["entity_id"] == service_id:
                 svc["fail_count"] = svc.get("fail_count", 0) + 1
+                svc["success_count"] = 0  # reset consecutive successes
                 if svc["fail_count"] >= self.failure_threshold:
                     svc["enabled"] = False
                     _LOGGER.warning(
@@ -63,10 +67,16 @@ class ProxyTTSSTTCoordinator:
         services = self.tts_services if service_type == "tts" else self.stt_services
         for svc in services:
             if svc["entity_id"] == service_id:
+                svc["success_count"] = svc.get("success_count", 0) + 1
                 svc["fail_count"] = 0
                 if not svc.get("enabled", False):
-                    svc["enabled"] = True
-                    _LOGGER.warning("Service %s recovered, re-enabled", service_id)
+                    if svc["success_count"] >= self.success_threshold:
+                        svc["enabled"] = True
+                        _LOGGER.info("Service %s recovered, re-enabled after %d successes",
+                                     service_id, svc["success_count"])
+                    else:
+                        _LOGGER.debug("Service %s has %d/%d consecutive successes, still disabled",
+                                      service_id, svc["success_count"], self.success_threshold)
                 return
         _LOGGER.debug("Service %s not found in %s services", service_id, service_type)
 
@@ -122,30 +132,42 @@ class ProxyTTSSTTCoordinator:
     async def call_tts_service(self, entity_id: str, message: str, language: str, options: Dict):
         """Call a TTS service and return audio data."""
         try:
-            return await asyncio.wait_for(
+            result = await asyncio.wait_for(
                 self.hass.services.async_call(
                     "tts",
                     "speak",
                     {"entity_id": entity_id, "message": message, "language": language, "options": options},
                     blocking=True,
+                    return_response=True,
                 ),
                 timeout=self.call_timeout,
             )
+            # TTS service returns {"result": {"format": str, "audio": bytes}}
+            if isinstance(result, dict) and "result" in result:
+                audio = result["result"].get("audio")
+                format = result["result"].get("format")
+                return (format, audio) if audio else None
+            return result
         except asyncio.TimeoutError:
             raise TTSException(f"TTS call to {entity_id} timed out after {self.call_timeout}s")
 
     async def call_stt_service(self, entity_id: str, audio_stream):
         """Call an STT service and return transcribed text."""
         try:
-            return await asyncio.wait_for(
+            result = await asyncio.wait_for(
                 self.hass.services.async_call(
                     "stt",
-                    "async_process",
+                    "process",
                     {"entity_id": entity_id, "audio_stream": audio_stream},
                     blocking=True,
+                    return_response=True,
                 ),
                 timeout=self.call_timeout,
             )
+            # STT service returns {"result": {"text": str, ...}}
+            if isinstance(result, dict) and "result" in result:
+                return result["result"]
+            return result
         except asyncio.TimeoutError:
             raise STTException(f"STT call to {entity_id} timed out after {self.call_timeout}s")
 
@@ -166,7 +188,36 @@ class ProxyTTSSTTCoordinator:
                 await asyncio.sleep(wait_seconds)
                 await self.async_health_check()
 
-        self.hass.async_create_task(daily_health_check())
+        self._health_check_task = self.hass.async_create_task(daily_health_check())
+
+    def _generate_silent_wav(self) -> bytes:
+        """Generate a 1-second silent WAV file (PCM 16-bit, 16kHz, mono)."""
+        sample_rate = 16000
+        num_channels = 1
+        bits_per_sample = 16
+        num_samples = sample_rate  # 1 second
+        byte_rate = sample_rate * num_channels * bits_per_sample // 8
+        block_align = num_channels * bits_per_sample // 8
+        data_size = num_samples * block_align
+
+        # RIFF header
+        header = (
+            b'RIFF' +
+            (36 + data_size).to_bytes(4, 'little') +
+            b'WAVE' +
+            b'fmt ' +
+            (16).to_bytes(4, 'little') +  # fmt chunk size
+            (1).to_bytes(2, 'little') +    # PCM format
+            (num_channels).to_bytes(2, 'little') +
+            (sample_rate).to_bytes(4, 'little') +
+            (byte_rate).to_bytes(4, 'little') +
+            (block_align).to_bytes(2, 'little') +
+            (bits_per_sample).to_bytes(2, 'little') +
+            b'data' +
+            data_size.to_bytes(4, 'little') +
+            (b'\x00' * data_size)  # silent PCM data
+        )
+        return header
 
     async def async_health_check(self):
         """Run health check on all TTS and STT services (3 attempts each)."""
@@ -182,9 +233,11 @@ class ProxyTTSSTTCoordinator:
             for attempt in range(3):
                 try:
                     if service_type == "tts":
-                        await self.call_tts_service(svc["entity_id"], "", "en", {})
+                        # Use a non-empty message for TTS health check
+                        await self.call_tts_service(svc["entity_id"], "Health check", "en", {})
                     else:
-                        await self.call_stt_service(svc["entity_id"], None)
+                        # Use valid silent WAV audio for STT health check
+                        await self.call_stt_service(svc["entity_id"], self._health_check_audio)
                     self.record_success(svc["entity_id"], service_type)
                     break
                 except Exception as exc:

@@ -142,32 +142,3 @@ class ProxyTTSSTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional("call_timeout", default=30): cv.positive_int,
             }),
         )
-
-
-class ProxyTTSSTTOptionFlow(config_entries.OptionsFlow):
-    """Handle options for tts_stt_proxy."""
-
-    def __init__(self, config_entry):
-        self.config_entry = config_entry
-
-    async def async_step_init(self, user_input=None):
-        """Manage the options."""
-        return await self.async_step_options(user_input)
-
-    async def async_step_options(self, user_input=None):
-        """Configure options."""
-        if user_input is not None:
-            return self.async_create_entry(data=user_input)
-
-        current_data = self.config_entry.data
-
-        return self.async_show_form(
-            step_id="options",
-            data_schema=vol.Schema({
-                vol.Optional("health_check_time", default=current_data.get("health_check_time", "02:00")): str,
-                vol.Optional("failure_threshold", default=current_data.get("failure_threshold", 3)): cv.positive_int,
-                vol.Optional("success_threshold", default=current_data.get("success_threshold", 1)): cv.positive_int,
-                vol.Optional("log_level", default=current_data.get("log_level", "info")): vol.In(["debug", "info", "warning", "error"]),
-                vol.Optional("call_timeout", default=current_data.get("call_timeout", 30)): cv.positive_int,
-            }),
-        )

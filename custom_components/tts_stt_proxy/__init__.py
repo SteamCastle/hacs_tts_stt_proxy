@@ -30,12 +30,15 @@ async def async_setup_entry(hass, entry):
 async def async_update_options(hass, entry):
     """Handle options update."""
     coordinator = hass.data[DOMAIN]["coordinator"]
-    coordinator.update_config(entry.data)
+    coordinator.update_config(entry.options)
     await coordinator.async_save()
 
 
 async def async_unload_entry(hass, entry):
     """Unload tts_stt_proxy config entry."""
+    coordinator = hass.data[DOMAIN].get("coordinator")
+    if coordinator and coordinator._health_check_task:
+        coordinator._health_check_task.cancel()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["tts", "stt"])
     if unload_ok:
         hass.data[DOMAIN].pop("coordinator", None)
