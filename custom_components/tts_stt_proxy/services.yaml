@@ -1,0 +1,9 @@
+trigger_health_check:
+  description: "Manually trigger TTS/STT health check"
+  fields:
+    service_type:
+      description: "Service type to check (tts, stt, or omit for all)"
+      example: "tts"
+    entity_id:
+      description: "Specific entity to check (omit to check all)"
+      example: "tts.edge_tts"

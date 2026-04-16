@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+
+# Home Assistant
+.storage/
+*.db
+*.log
+known_devices.yaml
+home-assistant.log
+.cloud/
+.secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+# docs/superpowers 是超能力工作流生成的内部文档，不需要提交到仓库
+docs/superpowers/

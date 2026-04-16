@@ -1,0 +1,9 @@
+{
+  "domain": "tts_stt_proxy",
+  "name": "Proxy TTS+STT",
+  "codeowners": ["@your-github"],
+  "requirements": [],
+  "dependencies": ["tts", "stt"],
+  "version": "1.0.0",
+  "config_flow": true
+}
