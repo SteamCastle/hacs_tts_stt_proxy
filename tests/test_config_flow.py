@@ -9,8 +9,14 @@ async def test_options_step_creates_entry_with_priorities():
     from custom_components.tts_stt_proxy.config_flow import ProxyTTSSTTConfigFlow
 
     flow = ProxyTTSSTTConfigFlow()
-    flow.tts_services = ["tts.google_tts", "tts.edge_tts"]
-    flow.stt_services = ["stt.whisper_stt"]
+    # Services are now dicts with entity_id and priority set by async_step_priorities
+    flow.tts_services = [
+        {"entity_id": "tts.google_tts", "priority": 1, "enabled": True, "fail_count": 0},
+        {"entity_id": "tts.edge_tts", "priority": 2, "enabled": True, "fail_count": 0},
+    ]
+    flow.stt_services = [
+        {"entity_id": "stt.whisper_stt", "priority": 1, "enabled": True, "fail_count": 0},
+    ]
     flow.health_check_time = "03:00"
     flow.failure_threshold = 5
     flow.success_threshold = 2

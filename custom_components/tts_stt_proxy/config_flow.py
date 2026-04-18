@@ -52,7 +52,10 @@ class ProxyTTSSTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         """First step — select TTS services."""
         if user_input is not None:
-            self.tts_services = user_input.get("tts_services", [])
+            self.tts_services = [
+                {"entity_id": eid, "priority": i+1, "enabled": True, "fail_count": 0}
+                for i, eid in enumerate(user_input.get("tts_services", []))
+            ]
             return await self.async_step_user_stt()
 
         all_states = self.hass.states.async_all()
@@ -73,7 +76,10 @@ class ProxyTTSSTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user_stt(self, user_input=None):
         """Second step — select STT services."""
         if user_input is not None:
-            self.stt_services = user_input.get("stt_services", [])
+            self.stt_services = [
+                {"entity_id": eid, "priority": i+1, "enabled": True, "fail_count": 0}
+                for i, eid in enumerate(user_input.get("stt_services", []))
+            ]
             return await self.async_step_priorities()
 
         all_states = self.hass.states.async_all()
@@ -92,16 +98,49 @@ class ProxyTTSSTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_priorities(self, user_input=None):
-        """Third step — confirm priorities."""
+        """Third step — set priorities for TTS services."""
         if user_input is not None:
+            # Update TTS priorities from user input
+            for service in user_input.get("tts_services", []):
+                for svc in self.tts_services:
+                    if svc["entity_id"] == service["entity_id"]:
+                        svc["priority"] = service["priority"]
+                        break
+            # Update STT priorities from user input
+            for service in user_input.get("stt_services", []):
+                for svc in self.stt_services:
+                    if svc["entity_id"] == service["entity_id"]:
+                        svc["priority"] = service["priority"]
+                        break
+            return await self.async_step_options()
+
+        # Build schema for TTS priorities
+        tts_schema_dict = {}
+        for i, entity_id in enumerate(self.tts_services):
+            default_priority = i + 1
+            tts_schema_dict[vol.Optional(f"tts_{entity_id}", default=default_priority)] = cv.positive_int
+
+        # Build schema for STT priorities
+        stt_schema_dict = {}
+        for i, entity_id in enumerate(self.stt_services):
+            default_priority = i + 1
+            stt_schema_dict[vol.Optional(f"stt_{entity_id}", default=default_priority)] = cv.positive_int
+
+        # Combine schemas
+        priority_schema = {}
+        priority_schema.update(tts_schema_dict)
+        priority_schema.update(stt_schema_dict)
+
+        if not priority_schema:
+            # No services selected, skip to options
             return await self.async_step_options()
 
         return self.async_show_form(
             step_id="priorities",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema(priority_schema),
             description_placeholders={
-                "tts_services": ", ".join(self.tts_services) if self.tts_services else "(none)",
-                "stt_services": ", ".join(self.stt_services) if self.stt_services else "(none)",
+                "tts_services": ", ".join([s["entity_id"] for s in self.tts_services]) if self.tts_services else "(none)",
+                "stt_services": ", ".join([s["entity_id"] for s in self.stt_services]) if self.stt_services else "(none)",
             },
         )
 
@@ -116,14 +155,8 @@ class ProxyTTSSTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(
                 title="Proxy TTS+STT",
                 data={
-                    "tts_services": [
-                        {"entity_id": eid, "priority": i+1, "enabled": True, "fail_count": 0}
-                        for i, eid in enumerate(self.tts_services)
-                    ],
-                    "stt_services": [
-                        {"entity_id": eid, "priority": i+1, "enabled": True, "fail_count": 0}
-                        for i, eid in enumerate(self.stt_services)
-                    ],
+                    "tts_services": self.tts_services,
+                    "stt_services": self.stt_services,
                     "health_check_time": self.health_check_time,
                     "failure_threshold": self.failure_threshold,
                     "success_threshold": self.success_threshold,
@@ -135,10 +168,10 @@ class ProxyTTSSTTConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="options",
             data_schema=vol.Schema({
-                vol.Optional("health_check_time", default="02:00"): str,
-                vol.Optional("failure_threshold", default=3): cv.positive_int,
-                vol.Optional("success_threshold", default=1): cv.positive_int,
-                vol.Optional("log_level", default="info"): vol.In(["debug", "info", "warning", "error"]),
-                vol.Optional("call_timeout", default=30): cv.positive_int,
+                vol.Optional("health_check_time", default=self.health_check_time): str,
+                vol.Optional("failure_threshold", default=self.failure_threshold): cv.positive_int,
+                vol.Optional("success_threshold", default=self.success_threshold): cv.positive_int,
+                vol.Optional("log_level", default=self.log_level): vol.In(["debug", "info", "warning", "error"]),
+                vol.Optional("call_timeout", default=self.call_timeout): cv.positive_int,
             }),
         )

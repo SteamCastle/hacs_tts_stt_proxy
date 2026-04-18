@@ -2,7 +2,7 @@
 import logging
 from typing import Any, Dict, List
 
-from homeassistant.components.tts import TextToSpeechEntity
+from homeassistant.components.tts import TextToSpeechEntity, TtsAudioType
 from homeassistant.exceptions import HomeAssistantError
 
 _LOGGER = logging.getLogger(__name__)
@@ -18,14 +18,11 @@ class ProxyTTSEntity(TextToSpeechEntity):
     def __init__(self, hass, coordinator):
         self.hass = hass
         self.coordinator = coordinator
+        self.entity_id = "tts.proxy_tts"
 
     @property
     def name(self) -> str:
         return "Proxy TTS"
-
-    @property
-    def entity_id(self) -> str:
-        return "tts.proxy_tts"
 
     @property
     def unique_id(self) -> str:
