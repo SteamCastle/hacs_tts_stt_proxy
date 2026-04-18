@@ -1,9 +1,11 @@
 {
   "domain": "tts_stt_proxy",
   "name": "Proxy TTS+STT",
-  "codeowners": ["@your-github"],
+  "codeowners": ["@SteamCastle"],
   "requirements": [],
   "dependencies": ["tts", "stt"],
   "version": "1.0.0",
-  "config_flow": true
+  "config_flow": true,
+  "documentation": "https://github.com/SteamCastle/tts_stt_proxy",
+  "issue_tracker": "https://github.com/SteamCastle/tts_stt_proxy/issues"
 }
