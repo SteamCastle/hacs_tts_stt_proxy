@@ -14,6 +14,22 @@ async def async_setup_entry(hass, entry):
     coordinator = ProxyTTSSTTCoordinator(hass)
     await coordinator.async_load()
 
+    # Load configuration from entry.data (set by config flow)
+    if "tts_services" in entry.data:
+        coordinator.tts_services = entry.data["tts_services"]
+    if "stt_services" in entry.data:
+        coordinator.stt_services = entry.data["stt_services"]
+    if "health_check_time" in entry.data:
+        coordinator.health_check_time = entry.data["health_check_time"]
+    if "failure_threshold" in entry.data:
+        coordinator.failure_threshold = entry.data["failure_threshold"]
+    if "success_threshold" in entry.data:
+        coordinator.success_threshold = entry.data["success_threshold"]
+    if "log_level" in entry.data:
+        coordinator.log_level = entry.data["log_level"]
+    if "call_timeout" in entry.data:
+        coordinator.call_timeout = entry.data["call_timeout"]
+
     hass.data.setdefault(DOMAIN, {})["coordinator"] = coordinator
 
     coordinator.schedule_periodic_health_check()

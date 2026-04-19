@@ -373,3 +373,51 @@ async def test_async_unload_entry_unloads():
 
     assert result is True
     assert mock_hass.config_entries.async_unload_platforms.called
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_loads_config_from_entry_data():
+    """async_setup_entry should load TTS/STT services from entry.data."""
+    from custom_components.tts_stt_proxy import async_setup_entry, DOMAIN
+    import asyncio
+
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
+
+    mock_entry = MagicMock()
+    mock_entry.entry_id = "test_entry_id"
+    mock_entry.data = {
+        "tts_services": [
+            {"entity_id": "tts.edge_tts", "priority": 1, "enabled": True, "fail_count": 0}
+        ],
+        "stt_services": [
+            {"entity_id": "stt.whisper", "priority": 1, "enabled": True, "fail_count": 0}
+        ],
+        "health_check_time": "03:00",
+        "failure_threshold": 5,
+        "success_threshold": 2,
+        "log_level": "debug",
+        "call_timeout": 60,
+    }
+
+    # Mock the Store to avoid actual file system access
+    mock_store = MagicMock()
+    mock_store.async_load = AsyncMock(return_value=None)
+    mock_store.async_save = AsyncMock()
+
+    with patch("custom_components.tts_stt_proxy.async_register_services", AsyncMock()):
+        with patch("custom_components.tts_stt_proxy.coordinator.Store", return_value=mock_store):
+            result = await async_setup_entry(mock_hass, mock_entry)
+
+            assert result is True
+            coord = mock_hass.data[DOMAIN]["coordinator"]
+            assert len(coord.tts_services) == 1
+            assert coord.tts_services[0]["entity_id"] == "tts.edge_tts"
+            assert len(coord.stt_services) == 1
+            assert coord.stt_services[0]["entity_id"] == "stt.whisper"
+            assert coord.health_check_time == "03:00"
+            assert coord.failure_threshold == 5
+            assert coord.success_threshold == 2
+            assert coord.log_level == "debug"
+            assert coord.call_timeout == 60
