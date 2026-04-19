@@ -2,7 +2,7 @@
   "name": "Proxy TTS+STT",
   "content_in_root": false,
   "zip_release": false,
-  "filename": "none",
+  "filename": "tts_stt_proxy",
   "hide_default_branch": false,
   "homeassistant": "2024.1.0"
 }
